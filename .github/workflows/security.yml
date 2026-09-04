@@ -1,12 +1,9 @@
 name: Security Review
-
 permissions:
   pull-requests: write
   contents: read
-
 on:
   pull_request:
-
 jobs:
   security:
     runs-on: ubuntu-latest
@@ -15,8 +12,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
-
-      - uses: ./.github/actions/claude-code-security-review
+      - uses: ./
         with:
           comment-pr: true
           use-bedrock: 'true'
