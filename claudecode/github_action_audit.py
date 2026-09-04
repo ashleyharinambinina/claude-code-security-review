@@ -313,7 +313,12 @@ class SimpleClaudeRunner:
     
     
     def validate_claude_available(self) -> Tuple[bool, str]:
-        """Validate that Claude Code is available."""
+        """Validate that Claude Code is available.
+
+        Accepts either a standard Anthropic API key (ANTHROPIC_API_KEY) or
+        an Amazon Bedrock configuration (CLAUDE_CODE_USE_BEDROCK=1 with
+        AWS_REGION and AWS_BEARER_TOKEN_BEDROCK / standard AWS credentials).
+        """
         try:
             result = subprocess.run(
                 ['claude', '--version'],
@@ -323,7 +328,25 @@ class SimpleClaudeRunner:
             )
             
             if result.returncode == 0:
-                # Also check if API key is configured
+                use_bedrock = os.environ.get('CLAUDE_CODE_USE_BEDROCK', '') == '1'
+
+                if use_bedrock:
+                    aws_region = os.environ.get('AWS_REGION', '')
+                    if not aws_region:
+                        return False, "CLAUDE_CODE_USE_BEDROCK=1 but AWS_REGION is not set"
+
+                    bedrock_bearer_token = os.environ.get('AWS_BEARER_TOKEN_BEDROCK', '')
+                    aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID', '')
+                    aws_profile = os.environ.get('AWS_PROFILE', '')
+
+                    if not (bedrock_bearer_token or aws_access_key or aws_profile):
+                        return False, (
+                            "CLAUDE_CODE_USE_BEDROCK=1 but no credentials were found "
+                            "(set AWS_BEARER_TOKEN_BEDROCK, or standard AWS credentials)"
+                        )
+                    return True, ""
+
+                # Default: standard Anthropic API key
                 api_key = os.environ.get('ANTHROPIC_API_KEY', '')
                 if not api_key:
                     return False, "ANTHROPIC_API_KEY environment variable is not set"
@@ -409,10 +432,13 @@ def initialize_findings_filter(custom_filtering_instructions: Optional[str] = No
     try:
         # Check if we should use Claude API filtering
         use_claude_filtering = os.environ.get('ENABLE_CLAUDE_FILTERING', 'false').lower() == 'true'
+        use_bedrock = os.environ.get('CLAUDE_CODE_USE_BEDROCK', '') == '1'
         api_key = os.environ.get('ANTHROPIC_API_KEY')
-        
-        if use_claude_filtering and api_key:
-            # Use full filtering with Claude API
+
+        # With Bedrock, ClaudeAPIClient doesn't need an explicit api_key
+        # (it authenticates via AWS_BEARER_TOKEN_BEDROCK / AWS credentials).
+        if use_claude_filtering and (api_key or use_bedrock):
+            # Use full filtering with Claude API (direct API or Bedrock)
             return FindingsFilter(
                 use_hard_exclusions=True,
                 use_claude_filtering=True,

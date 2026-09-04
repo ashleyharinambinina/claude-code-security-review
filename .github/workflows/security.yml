@@ -1,0 +1,25 @@
+name: Security Review
+
+permissions:
+  pull-requests: write
+  contents: read
+
+on:
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      - uses: ./.github/actions/claude-code-security-review
+        with:
+          comment-pr: true
+          use-bedrock: 'true'
+          aws-region: 'us-east-1'
+          bedrock-api-key: ${{ secrets.BEDROCK_API_KEY }}
+          claude-model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0'

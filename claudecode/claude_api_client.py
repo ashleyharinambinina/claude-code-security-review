@@ -372,5 +372,3 @@ def get_claude_api_client(model: str = DEFAULT_CLAUDE_MODEL,
         api_key=api_key,
         timeout_seconds=timeout_seconds
     )
-
-

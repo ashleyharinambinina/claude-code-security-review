@@ -11,8 +11,14 @@ requests>=2.28.0
 # prompts.py (no additional deps - uses stdlib)
 # findings_filter.py (uses re, built-in)
 
-# Anthropic SDK for Claude API-based false positive filtering
-anthropic>=0.39.0
+# Anthropic SDK for Claude API-based false positive filtering.
+# The "bedrock" extra pulls in boto3, needed for AnthropicBedrock and
+# for AWS_BEARER_TOKEN_BEDROCK (Bedrock API key) support.
+anthropic[bedrock]>=0.69.0
+
+# Explicit floor on boto3 to make sure Bedrock API key (bearer token)
+# auth via AWS_BEARER_TOKEN_BEDROCK is supported.
+boto3>=1.35.0
 
 # Note: Claude CLI tool must be installed separately
 # The claude command-line tool is required for security analysis

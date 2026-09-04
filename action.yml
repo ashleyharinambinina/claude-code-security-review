@@ -24,12 +24,27 @@ inputs:
     default: '20'
   
   claude-api-key:
-    description: 'Anthropic Claude API key for security analysis'
-    required: true
+    description: 'Anthropic Claude API key for security analysis (not required if use-bedrock is true)'
+    required: false
     default: ''
 
   claude-model:
-    description: 'Claude model to use for security analysis (e.g., claude-sonnet-4-20250514)'
+    description: 'Claude model to use for security analysis (e.g., claude-sonnet-4-20250514, or a Bedrock model ID)'
+    required: false
+    default: ''
+
+  use-bedrock:
+    description: 'Use Amazon Bedrock instead of the Anthropic API'
+    required: false
+    default: 'false'
+
+  aws-region:
+    description: 'AWS region to use for Bedrock'
+    required: false
+    default: 'us-east-1'
+
+  bedrock-api-key:
+    description: 'Bedrock bearer token / API key (used when use-bedrock is true). Maps to AWS_BEARER_TOKEN_BEDROCK.'
     required: false
     default: ''
 
@@ -182,6 +197,10 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         ANTHROPIC_API_KEY: ${{ inputs.claude-api-key }}
+        USE_BEDROCK: ${{ inputs.use-bedrock }}
+        CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use-bedrock == 'true' && '1' || '' }}
+        AWS_REGION: ${{ inputs.aws-region }}
+        AWS_BEARER_TOKEN_BEDROCK: ${{ inputs.bedrock-api-key }}
         ENABLE_CLAUDE_FILTERING: 'true' 
         EXCLUDE_DIRECTORIES: ${{ inputs.exclude-directories }}
         FALSE_POSITIVE_FILTERING_INSTRUCTIONS: ${{ inputs.false-positive-filtering-instructions }}
@@ -203,13 +222,26 @@ runs:
           exit 0
         fi
         
-        # Validate API key is provided
-        if [ -z "$ANTHROPIC_API_KEY" ]; then
-          echo "::error::ANTHROPIC_API_KEY is not set. Please provide the claude-api-key input to the action."
-          echo "Example usage:"
-          echo "  - uses: anthropics/claude-code-security-reviewer@main"
-          echo "    with:"
-          echo "      claude-api-key: \$\{{ secrets.ANTHROPIC_API_KEY }}"
+        # Validate that either an Anthropic API key OR Bedrock credentials are provided
+        if [ "$USE_BEDROCK" == "true" ]; then
+          if [ -z "$AWS_BEARER_TOKEN_BEDROCK" ]; then
+            echo "::error::use-bedrock is true but bedrock-api-key is not set."
+            echo "Example usage:"
+            echo "  - uses: ./.github/actions/claude-code-security-review"
+            echo "    with:"
+            echo "      use-bedrock: 'true'"
+            echo "      aws-region: 'us-east-1'"
+            echo "      bedrock-api-key: \$\{{ secrets.BEDROCK_API_KEY }}"
+            exit 1
+          fi
+          if [ -z "$AWS_REGION" ]; then
+            echo "::error::use-bedrock is true but aws-region is not set."
+            exit 1
+          fi
+          # Anthropic API key isn't used in Bedrock mode
+          unset ANTHROPIC_API_KEY
+        elif [ -z "$ANTHROPIC_API_KEY" ]; then
+          echo "::error::ANTHROPIC_API_KEY is not set. Please provide the claude-api-key input, or set use-bedrock: 'true' with bedrock-api-key."
           exit 1
         fi
                 
@@ -225,7 +257,11 @@ runs:
         echo "Current directory: $(pwd)"
         echo "Python version: $(python --version)"
         echo "Claude CLI version: $(claude --version 2>&1 || echo 'Claude CLI not found')"
+        echo "Auth mode: $(if [ "$USE_BEDROCK" == "true" ]; then echo 'Amazon Bedrock'; else echo 'Anthropic API'; fi)"
+        echo "AWS_REGION: $AWS_REGION"
+        echo "AWS_BEARER_TOKEN_BEDROCK set: $(if [ -n "$AWS_BEARER_TOKEN_BEDROCK" ]; then echo 'Yes'; else echo 'No'; fi)"
         echo "ANTHROPIC_API_KEY set: $(if [ -n "$ANTHROPIC_API_KEY" ]; then echo 'Yes'; else echo 'No'; fi)"
+        echo "CLAUDE_MODEL: $CLAUDE_MODEL"
         echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
         echo "PR_NUMBER: $PR_NUMBER"
         echo "Python path: $PYTHONPATH"
